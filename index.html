@@ -1,218 +1,408 @@
-<!doctype html>
-<html lang="es">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Banderas — Quiz</title>
-  <meta name="theme-color" content="#0ea5e9" />
-  <link id="manifestLink" rel="manifest" />
-  <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    :root{ --tap:44px }
-    html,body{ height:100% }
-    .kbd{ padding:.2rem .4rem; border-radius:.4rem; border:1px solid rgba(0,0,0,.15); background:#fff; font-weight:600; font-size:.9em }
-    .btn{ min-height:var(--tap) }
-    .answer-btn[disabled]{ opacity:.6; pointer-events:none }
-    .flag-skeleton{ animation:pulse 1.4s ease-in-out infinite; background:linear-gradient(90deg,#e2e8f0 25%,#f1f5f9 50%,#e2e8f0 75%) }
-    @keyframes pulse{0%{background-position:0 0}100%{background-position:300% 0}}
-    .focus-ring:focus-visible{ outline: 2px solid #0ea5e9; outline-offset: 2px }
-  </style>
-</head>
-<body class="bg-slate-50 text-slate-800">
-  <!-- Top bar -->
-  <header class="sticky top-0 z-50 bg-white/90 backdrop-blur border-b">
-    <div class="max-w-5xl mx-auto px-3 sm:px-4 py-2 sm:py-3 flex items-center justify-between gap-2">
-      <div class="flex items-center gap-2 sm:gap-3 min-w-0">
-        <span class="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-sky-600 text-white text-xl shrink-0">🌐</span>
-        <div class="min-w-0">
-          <h1 class="text-base sm:text-lg font-bold leading-tight truncate">Banderas — Quiz</h1>
-          <div class="text-[11px] text-slate-500 hidden sm:block">Rápido, accesible y offline</div>
-        </div>
-      </div>
-      <div class="flex items-center gap-1 sm:gap-2">
-        <button id="btnFullscreen" type="button" class="px-3 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-sm font-semibold btn focus-ring">Pantalla completa</button>
-        <button id="btnPause" type="button" class="px-3 py-1.5 rounded-xl border bg-white hover:bg-slate-50 text-sm font-semibold btn focus-ring">⏸ Pausa</button>
-      </div>
-    </div>
-  </header>
+// app.js — Banderas Quiz (oct-2025)
+// – Arranque directo tras elegir modo/tema/dificultad
+// – Supervivencia ☠️
+// – Modal de pausa + A11y + atajos 1–4, P
+// – Fallback de países si falla la red
 
-  <!-- App -->
-  <main class="max-w-5xl mx-auto p-3 sm:p-4">
-    <!-- Panel de selección -->
-    <section id="panelSetup" class="bg-white rounded-2xl shadow p-4 sm:p-6">
-      <h2 class="text-lg sm:text-xl font-bold mb-3">1) Modo</h2>
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
-        <button type="button" class="mode-btn px-4 py-3 rounded-xl border bg-white hover:bg-slate-50 text-left btn focus-ring" data-mode="flags" aria-pressed="false">🏁 Banderas</button>
-        <button type="button" class="mode-btn px-4 py-3 rounded-xl border bg-white hover:bg-slate-50 text-left btn focus-ring" data-mode="capitals" aria-pressed="false">🏛️ Capitales</button>
-        <button type="button" class="mode-btn px-4 py-3 rounded-xl border bg-white hover:bg-slate-50 text-left btn focus-ring" data-mode="mixed" aria-pressed="false">🔀 Mixto</button>
-      </div>
+// ===== Utils =====
+const $  = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+const clamp = (n,min,max)=>Math.max(min,Math.min(max,n));
+const wait = ms => new Promise(r=>setTimeout(r,ms));
+const randInt = n => Math.floor(Math.random()*n);
+function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]] } return a; }
+const todayStr = () => new Date().toISOString().slice(0,10);
 
-      <h2 class="text-lg sm:text-xl font-bold mt-5 sm:mt-6 mb-2">2) Tema</h2>
-      <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
-        <!-- Mundo -->
-        <button type="button" class="theme-btn px-3 py-2 rounded-xl border bg-white hover:bg-slate-50 btn focus-ring flex items-center gap-3" data-theme="World" aria-pressed="false">
-          <span aria-hidden="true" class="w-7 h-7">🌍</span><span class="font-semibold">Mundo</span>
-        </button>
-        <!-- Europa -->
-        <button type="button" class="theme-btn px-3 py-2 rounded-xl border bg-white hover:bg-slate-50 btn focus-ring flex items-center gap-3" data-theme="Europe" aria-pressed="false">
-          <svg aria-hidden="true" class="w-7 h-7" viewBox="0 0 24 24" fill="currentColor"><path d="M5 4h14l-1 3 2 3-2 2 1 3-4 5H6l-2-4 3-2-2-3 3-2-2-5z"/></svg>
-          <span class="font-semibold">Europa</span>
-        </button>
-        <!-- África -->
-        <button type="button" class="theme-btn px-3 py-2 rounded-xl border bg-white hover:bg-slate-50 btn focus-ring flex items-center gap-3" data-theme="Africa" aria-pressed="false">
-          <svg aria-hidden="true" class="w-7 h-7" viewBox="0 0 24 24" fill="currentColor"><path d="M8 2l6 1 4 5-2 2 1 2-3 2v3l-3 5-4-3 1-4-3-3 1-3 2-1 0-3z"/></svg>
-          <span class="font-semibold">África</span>
-        </button>
-        <!-- Asia -->
-        <button type="button" class="theme-btn px-3 py-2 rounded-xl border bg-white hover:bg-slate-50 btn focus-ring flex items-center gap-3" data-theme="Asia" aria-pressed="false">
-          <svg aria-hidden="true" class="w-7 h-7" viewBox="0 0 24 24" fill="currentColor"><path d="M4 8l5-4 7 1 4 4-2 3-4 1-2 3-4 2-2-3 2-3-2-1z"/></svg>
-          <span class="font-semibold">Asia</span>
-        </button>
-        <!-- América -->
-        <button type="button" class="theme-btn px-3 py-2 rounded-xl border bg-white hover:bg-slate-50 btn focus-ring flex items-center gap-3" data-theme="Americas" aria-pressed="false">
-          <svg aria-hidden="true" class="w-7 h-7" viewBox="0 0 24 24" fill="currentColor"><path d="M10 2l6 2 4 6-2 2-3-1-1 3-3 2-1 4-3-1-1-3 2-3-2-2 1-3 2-1z"/></svg>
-          <span class="font-semibold">América</span>
-        </button>
-        <!-- Oceanía -->
-        <button type="button" class="theme-btn px-3 py-2 rounded-xl border bg-white hover:bg-slate-50 btn focus-ring flex items-center gap-3" data-theme="Oceania" aria-pressed="false">
-          <svg aria-hidden="true" class="w-7 h-7" viewBox="0 0 24 24" fill="currentColor"><path d="M3 14l4-4 5 1 3 4-2 3H6l-3-4z"/></svg>
-          <span class="font-semibold">Oceanía</span>
-        </button>
-      </div>
+// ===== Constantes =====
+const LEVELS = {
+  easy:   { label:'Fácil',   time:15, wrongPenalty: 0, pointsRight:10, pointsWrong:0 },
+  medium: { label:'Medio',   time:12, wrongPenalty: 0, pointsRight:10, pointsWrong:0 },
+  hard:   { label:'Difícil', time: 8, wrongPenalty:-5, pointsRight:10, pointsWrong:-5 },
+  survival: { label:'Supervivencia', time:20, wrongPenalty:'die', pointsRight:10, pointsWrong:'die', bonusPerHit:2 }
+};
 
-      <h2 class="text-lg sm:text-xl font-bold mt-5 sm:mt-6 mb-2">3) Dificultad</h2>
-      <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
-        <button type="button" class="level-btn px-3 py-2 rounded-xl border bg-white hover:bg-slate-50 btn focus-ring" data-level="easy" aria-pressed="false">🌶️ Fácil (15s)</button>
-        <button type="button" class="level-btn px-3 py-2 rounded-xl border bg-white hover:bg-slate-50 btn focus-ring" data-level="medium" aria-pressed="false">🌶️🌶️ Medio (12s)</button>
-        <button type="button" class="level-btn px-3 py-2 rounded-xl border bg-white hover:bg-slate-50 btn focus-ring" data-level="hard" aria-pressed="false">🌶️🌶️🌶️ Difícil (8s)</button>
-        <button type="button" class="level-btn px-3 py-2 rounded-xl border bg-white hover:bg-slate-50 btn focus-ring flex items-center justify-center gap-2" data-level="survival" aria-pressed="false">☠️ Supervivencia</button>
-      </div>
+const MAX_Q = 10;
+const API = "https://restcountries.com/v3.1/all?fields=name,flags,continents,capital,cca2";
 
-      <div class="mt-4 text-xs text-slate-500">
-        Consejo: atajos <strong>1–4</strong> para responder, <strong>P</strong> para pausar. En Supervivencia no se puede pausar.
-      </div>
-    </section>
+// Fallback mínimo (por si no hay red)
+const FALLBACK = [
+  { name:{common:"Spain",nativeName:{spa:{common:"España"}}}, flags:{svg:"https://flagcdn.com/es.svg", png:"https://flagcdn.com/w320/es.png"}, continents:["Europe"], capital:["Madrid"], cca2:"ES" },
+  { name:{common:"France"}, flags:{svg:"https://flagcdn.com/fr.svg", png:"https://flagcdn.com/w320/fr.png"}, continents:["Europe"], capital:["Paris"], cca2:"FR" },
+  { name:{common:"Brazil"}, flags:{svg:"https://flagcdn.com/br.svg", png:"https://flagcdn.com/w320/br.png"}, continents:["Americas"], capital:["Brasília"], cca2:"BR" },
+  { name:{common:"Japan"}, flags:{svg:"https://flagcdn.com/jp.svg", png:"https://flagcdn.com/w320/jp.png"}, continents:["Asia"], capital:["Tokyo"], cca2:"JP" },
+  { name:{common:"Australia"}, flags:{svg:"https://flagcdn.com/au.svg", png:"https://flagcdn.com/w320/au.png"}, continents:["Oceania"], capital:["Canberra"], cca2:"AU" },
+  { name:{common:"South Africa"}, flags:{svg:"https://flagcdn.com/za.svg", png:"https://flagcdn.com/w320/za.png"}, continents:["Africa"], capital:["Pretoria"], cca2:"ZA" }
+];
 
-    <!-- Panel de juego -->
-    <section id="panelGame" class="hidden mt-4 grid gap-3 sm:gap-4">
-      <div class="bg-white rounded-2xl shadow p-3 sm:p-4 flex items-center justify-between flex-wrap gap-2">
-        <div class="flex items-center gap-3 text-sm">
-          <div>Modo: <span id="uiMode" class="font-semibold">—</span></div>
-          <div>Tema: <span id="uiTheme" class="font-semibold">—</span></div>
-          <div>Dificultad: <span id="uiLevel" class="font-semibold">—</span></div>
-        </div>
-        <div class="flex items-center gap-3 text-sm">
-          <div>Pregunta <span id="uiQ">1</span>/<span id="uiQTotal">10</span></div>
-          <div class="flex items-center gap-2">
-            <span class="inline-block w-24 bg-slate-200 rounded-full overflow-hidden" aria-label="Tiempo restante"><span id="timeBar" class="block h-2 bg-emerald-600" style="width:100%"></span></span>
-            <span id="uiTime" class="tabular-nums w-8 text-right">15</span>s
-          </div>
-          <div>Puntos: <span id="uiScore" class="font-semibold tabular-nums">0</span></div>
-        </div>
-      </div>
+// ===== Estado =====
+const state = {
+  mode:null,       // 'flags' | 'capitals' | 'mixed'
+  theme:null,      // 'World' | 'Europe' | 'Africa' | 'Americas' | 'Asia' | 'Oceania'
+  level:null,      // 'easy' | 'medium' | 'hard' | 'survival'
+  pool:[],         // países filtrados
+  qIdx:0,
+  score:0,
+  hits:0,
+  streak:0,
+  maxStreak:0,
+  timeLeft:0,
+  timer:null,
+  currentQ:null,   // objeto pregunta
+  locked:false,    // para evitar doble click
+  started:false
+};
 
-      <div class="bg-white rounded-2xl shadow p-4 sm:p-6">
-        <div id="flagWrap" class="w-full aspect-video max-h-[40vh] mx-auto flex items-center justify-center rounded-xl bg-slate-100 overflow-hidden">
-          <div id="flagSkeleton" class="flag-skeleton w-full h-full"></div>
-          <img id="flagImg" alt="Bandera" class="hidden max-h-full object-contain" />
-        </div>
-        <h3 id="questionText" class="mt-4 text-lg sm:text-xl font-semibold text-center">—</h3>
-        <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3" role="group" aria-label="Opciones de respuesta">
-          <button class="answer-btn px-4 py-3 rounded-xl border bg-white hover:bg-slate-50 text-left btn focus-ring" data-idx="0" aria-pressed="false">—</button>
-          <button class="answer-btn px-4 py-3 rounded-xl border bg-white hover:bg-slate-50 text-left btn focus-ring" data-idx="1" aria-pressed="false">—</button>
-          <button class="answer-btn px-4 py-3 rounded-xl border bg-white hover:bg-slate-50 text-left btn focus-ring" data-idx="2" aria-pressed="false">—</button>
-          <button class="answer-btn px-4 py-3 rounded-xl border bg-white hover:bg-slate-50 text-left btn focus-ring" data-idx="3" aria-pressed="false">—</button>
-        </div>
-      </div>
-    </section>
+// ===== Selección UI =====
+const setup = {
+  modes: $$('.mode-btn'),
+  themes: $$('.theme-btn'),
+  levels: $$('.level-btn')
+};
 
-    <!-- Panel de fin -->
-    <section id="panelEnd" class="hidden bg-white rounded-2xl shadow p-4 sm:p-6 mt-4">
-      <div class="text-center">
-        <div id="endIcon" class="text-5xl mb-2">🏆</div>
-        <h3 id="endTitle" class="text-xl font-bold mb-1">¡Partida finalizada!</h3>
-        <p id="endSubtitle" class="text-slate-600">Resultados:</p>
-      </div>
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mt-4">
-        <div class="rounded-xl border p-3 text-center">
-          <div class="text-sm text-slate-500">Puntuación</div>
-          <div id="endScore" class="text-2xl font-bold tabular-nums">0</div>
-        </div>
-        <div class="rounded-xl border p-3 text-center">
-          <div class="text-sm text-slate-500">Aciertos</div>
-          <div id="endHits" class="text-2xl font-bold tabular-nums">0</div>
-        </div>
-        <div class="rounded-xl border p-3 text-center">
-          <div class="text-sm text-slate-500">Racha máx.</div>
-          <div id="endStreak" class="text-2xl font-bold tabular-nums">0</div>
-        </div>
-      </div>
-      <div class="mt-4 flex items-center justify-center gap-2">
-        <button id="btnAgain" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold btn focus-ring">Jugar de nuevo</button>
-        <button id="btnSetup" class="px-4 py-2 rounded-xl border bg-white hover:bg-slate-50 font-semibold btn focus-ring">Cambiar configuración</button>
-      </div>
-    </section>
-  </main>
+// ARIA toggle
+function setPressed(elGroup, target){
+  elGroup.forEach(b=>b.setAttribute('aria-pressed', b===target ? 'true' : 'false'));
+}
 
-  <!-- Modal pausa -->
-  <dialog id="pauseModal" class="rounded-2xl p-0 w-[min(95vw,28rem)] shadow backdrop:bg-black/40">
-    <form method="dialog" class="bg-white rounded-2xl overflow-hidden">
-      <div class="p-5 sm:p-6">
-        <h3 class="text-xl font-bold mb-2">Juego en pausa</h3>
-        <p class="text-sm text-slate-600">Pulsa <span class="kbd">P</span> o “Reanudar”.</p>
-      </div>
-      <div class="bg-slate-50 p-4 flex justify-end gap-2">
-        <button value="cancel" class="px-4 py-2 rounded-xl border bg-white hover:bg-slate-50 font-semibold btn focus-ring">Salir</button>
-        <button id="resumeBtn" value="default" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold btn focus-ring">Reanudar</button>
-      </div>
-    </form>
-  </dialog>
+// ===== Datos =====
+let COUNTRY_CACHE = null;
 
-  <script type="module" src="./app.js"></script>
+async function loadCountries(){
+  if (COUNTRY_CACHE) return COUNTRY_CACHE;
+  try{
+    const res = await fetch(API, {cache:'force-cache'});
+    if(!res.ok) throw new Error('bad status');
+    const all = await res.json();
+    // limpieza básica
+    COUNTRY_CACHE = all.filter(c=>c?.name?.common && (c.flags?.svg||c.flags?.png));
+  }catch{
+    COUNTRY_CACHE = FALLBACK;
+  }
+  return COUNTRY_CACHE;
+}
 
-  <!-- Manifest + SW en caliente (simple) -->
-  <script>
-    // Manifest dinámico mínimo
-    const manifest = {
-      name: "Banderas — Quiz",
-      short_name: "Banderas",
-      start_url: ".",
-      display: "standalone",
-      background_color: "#ffffff",
-      theme_color: "#0ea5e9",
-      icons: []
-    };
-    const blob = new Blob([JSON.stringify(manifest)], {type:'application/json'});
-    const url = URL.createObjectURL(blob);
-    document.getElementById('manifestLink').setAttribute('href', url);
+function byTheme(countries, theme){
+  if (theme==='World') return countries;
+  return countries.filter(c=> (c.continents||[]).includes(theme));
+}
 
-    // Service Worker cache-first básico
-    if ('serviceWorker' in navigator) {
-      const swCode = `
-        const CACHE = "flags-quiz-v1";
-        const ASSETS = ["./","./index.html","./app.js","https://cdn.tailwindcss.com"];
-        self.addEventListener("install", e=>{
-          e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)));
-          self.skipWaiting();
-        });
-        self.addEventListener("activate", e=>{ self.clients.claim() });
-        self.addEventListener("fetch", e=>{
-          const url = new URL(e.request.url);
-          if (ASSETS.includes(url.pathname) || url.origin===location.origin){
-            e.respondWith(caches.match(e.request).then(r=> r || fetch(e.request).then(resp=>{
-              const copy = resp.clone();
-              caches.open(CACHE).then(c=>c.put(e.request,copy));
-              return resp;
-            })));
-            return;
-          }
-          e.respondWith(fetch(e.request).catch(()=>caches.match(e.request)));
-        });
-      `;
-      const swBlob = new Blob([swCode], {type:'text/javascript'});
-      const swUrl = URL.createObjectURL(swBlob);
-      navigator.serviceWorker.register(swUrl).catch(()=>{});
+// ===== Generación de preguntas =====
+function buildQuestion(country, mode){
+  const name = country.name?.common || '—';
+  const capital = (country.capital && country.capital[0]) || '—';
+  const flagUrl = country.flags?.svg || country.flags?.png || '';
+  if (mode==='flags') {
+    return { type:'flag', prompt:`¿De qué país es esta bandera?`, media:flagUrl, answer:name };
+  }
+  if (mode==='capitals') {
+    return { type:'capital', prompt:`¿Cuál es la capital de ${name}?`, media:null, answer:capital };
+  }
+  // mixed
+  return Math.random()<0.5
+    ? { type:'flag', prompt:`¿De qué país es esta bandera?`, media:flagUrl, answer:name }
+    : { type:'capital', prompt:`¿Cuál es la capital de ${name}?`, media:null, answer:capital };
+}
+
+function pickOptions(correct, pool, type){
+  // Devuelve 4 opciones mezcladas, 1 correcta + 3 distracciones
+  const field = (type==='capital') ? (c=> (c.capital&&c.capital[0]) || null) : (c=> c.name?.common || null);
+  const unique = new Set([correct]);
+  const fill = [];
+  let safety=0;
+  while(fill.length<3 && safety<500){
+    safety++;
+    const cand = field(pool[randInt(pool.length)]);
+    if (cand && !unique.has(cand)){
+      unique.add(cand);
+      fill.push(cand);
     }
-  </script>
-</body>
-</html>
+  }
+  const all = shuffle([correct, ...fill]);
+  return all;
+}
+
+// ===== Flujo de juego =====
+function show(el){ el.classList.remove('hidden') }
+function hide(el){ el.classList.add('hidden') }
+
+function setTimeBar(frac){
+  $('#timeBar').style.width = `${clamp(frac,0,1)*100}%`;
+}
+
+function setQuestionUI(q){
+  // loader bandera
+  $('#flagSkeleton').classList.remove('hidden');
+  $('#flagImg').classList.add('hidden');
+  const flagImg = $('#flagImg');
+
+  $('#questionText').textContent = q.prompt;
+  if(q.type==='flag'){
+    $('#flagWrap').classList.remove('hidden');
+    flagImg.src = q.media;
+    flagImg.onload = ()=> {
+      $('#flagSkeleton').classList.add('hidden');
+      flagImg.classList.remove('hidden');
+    };
+    flagImg.onerror = ()=> { $('#flagSkeleton').classList.add('hidden'); flagImg.classList.add('hidden'); };
+  }else{
+    $('#flagWrap').classList.remove('hidden');
+    $('#flagSkeleton').classList.add('hidden');
+    flagImg.classList.add('hidden');
+  }
+}
+
+function renderQuestion(){
+  const q = state.currentQ;
+  setQuestionUI(q);
+  const options = pickOptions(q.answer, state.pool, q.type);
+  $$('.answer-btn').forEach((b,i)=>{
+    b.disabled = false;
+    b.dataset.value = options[i];
+    b.setAttribute('aria-pressed','false');
+    b.textContent = options[i];
+  });
+  state.locked = false;
+}
+
+function nextQuestion(){
+  if(state.level==='survival'){
+    $('#uiQTotal').textContent = '∞';
+  }else{
+    $('#uiQTotal').textContent = String(MAX_Q);
+  }
+  $('#uiQ').textContent = String(state.qIdx+1);
+}
+
+function updateHud(){
+  $('#uiScore').textContent = String(state.score);
+  $('#uiMode').textContent  = {flags:'Banderas',capitals:'Capitales',mixed:'Mixto'}[state.mode] || '—';
+  $('#uiTheme').textContent = state.theme || '—';
+  $('#uiLevel').textContent = LEVELS[state.level]?.label || '—';
+}
+
+function startTimer(){
+  clearInterval(state.timer);
+  const base = LEVELS[state.level].time;
+  state.timeLeft = base;
+  setTimeBar(1);
+  $('#uiTime').textContent = String(base);
+  state.timer = setInterval(()=>{
+    state.timeLeft -= .1;
+    $('#uiTime').textContent = String(Math.max(0,Math.ceil(state.timeLeft)));
+    setTimeBar(state.timeLeft/base);
+    if (state.timeLeft<=0){
+      clearInterval(state.timer);
+      onAnswer(null); // timeout = fallo
+    }
+  },100);
+}
+
+function stopTimer(){
+  clearInterval(state.timer);
+}
+
+function buildRound(){
+  // elige país y construye pregunta
+  const c = state.pool[randInt(state.pool.length)];
+  state.currentQ = buildQuestion(c, state.mode);
+  renderQuestion();
+  startTimer();
+  nextQuestion();
+  updateHud();
+}
+
+function endGame({survivalDead=false}={}){
+  stopTimer();
+  hide($('#panelGame'));
+  show($('#panelEnd'));
+
+  let title = survivalDead ? 'Fin — Supervivencia' : '¡Partida finalizada!';
+  let icon  = survivalDead ? '🏅' : '🏆';
+
+  $('#endTitle').textContent = title;
+  $('#endIcon').textContent = icon;
+  $('#endScore').textContent = String(state.score);
+  $('#endHits').textContent  = String(state.hits);
+  $('#endStreak').textContent= String(state.maxStreak);
+}
+
+function onAnswer(value){
+  if(state.locked) return;
+  state.locked = true;
+
+  const isSurvival = state.level==='survival';
+  const correct = (value === state.currentQ.answer);
+
+  // Marcar UI
+  $$('.answer-btn').forEach(b=>{
+    const ok = (b.dataset.value === state.currentQ.answer);
+    if (ok) b.classList.add('border-emerald-600');
+    if (b.dataset.value === value) b.setAttribute('aria-pressed','true');
+    b.disabled = true;
+  });
+
+  // Puntuación
+  if (correct){
+    state.hits++;
+    state.streak++;
+    state.maxStreak = Math.max(state.maxStreak, state.streak);
+    state.score += LEVELS[state.level].pointsRight;
+    // bonus supervivencia
+    if (isSurvival){
+      stopTimer();
+      const add = LEVELS.survival.bonusPerHit || 2;
+      const base = state.timeLeft + add;
+      state.timeLeft = Math.min(base, 99);
+      startTimer();
+    }
+  }else{
+    // fallo
+    if (isSurvival){
+      endGame({survivalDead:true});
+      return;
+    }else{
+      state.streak = 0;
+      state.score += (LEVELS[state.level].pointsWrong||0);
+    }
+  }
+
+  updateHud();
+
+  // Siguiente
+  if (isSurvival){
+    state.qIdx++;
+    setTimeout(()=>{ buildRound() }, 550);
+  }else{
+    state.qIdx++;
+    if (state.qIdx>=MAX_Q){
+      endGame({});
+    }else{
+      setTimeout(()=>{ buildRound() }, 550);
+    }
+  }
+}
+
+// ===== Controles =====
+function bindSetup(){
+  setup.modes.forEach(b=> b.addEventListener('click', ()=>{
+    state.mode = b.dataset.mode;
+    setPressed(setup.modes, b);
+    tryStartIfReady();
+  }));
+
+  setup.themes.forEach(b=> b.addEventListener('click', ()=>{
+    state.theme = b.dataset.theme;
+    setPressed(setup.themes, b);
+    tryStartIfReady();
+  }));
+
+  setup.levels.forEach(b=> b.addEventListener('click', ()=>{
+    state.level = b.dataset.level;
+    setPressed(setup.levels, b);
+    tryStartIfReady();
+  }));
+}
+
+function bindGame(){
+  $$('.answer-btn').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      if (state.locked) return;
+      onAnswer(b.dataset.value);
+    });
+  });
+
+  document.addEventListener('keydown', (e)=>{
+    if (!state.started) return;
+    const k = e.key;
+    if (k>='1' && k<='4'){
+      const idx = Number(k)-1;
+      const btn = $(`.answer-btn[data-idx="${idx}"]`);
+      btn?.click();
+    }
+    if (k==='p' || k==='P'){
+      if (state.level==='survival') return; // no pausar en supervivencia
+      openPause();
+    }
+  });
+
+  $('#btnPause').addEventListener('click', ()=>{
+    if (state.level==='survival') return;
+    openPause();
+  });
+  $('#resumeBtn').addEventListener('click', ()=>{
+    closePause();
+  });
+
+  $('#btnAgain').addEventListener('click', ()=>{
+    // repetir con misma config
+    startGame(true);
+  });
+  $('#btnSetup').addEventListener('click', ()=>{
+    stopTimer();
+    state.started = false;
+    show($('#panelSetup'));
+    hide($('#panelGame'));
+    hide($('#panelEnd'));
+  });
+
+  $('#btnFullscreen').addEventListener('click', async ()=>{
+    try{
+      if (!document.fullscreenElement) await document.documentElement.requestFullscreen();
+      else await document.exitFullscreen();
+    }catch{}
+  });
+}
+
+// ===== Pausa =====
+function openPause(){
+  stopTimer();
+  $('#pauseModal')?.showModal();
+}
+function closePause(){
+  $('#pauseModal')?.close();
+  startTimer();
+}
+
+// ===== Inicio =====
+async function startGame(keepConfig=false){
+  if (!keepConfig){
+    state.qIdx=0; state.score=0; state.hits=0; state.streak=0; state.maxStreak=0;
+  }
+  // preparar pool
+  const all = await loadCountries();
+  let pool = byTheme(all, state.theme||'World');
+  // filtrar elementos válidos
+  pool = pool.filter(c=>{
+    const hasFlag = !!(c.flags?.svg || c.flags?.png);
+    const hasCapital = !!(c.capital && c.capital[0]);
+    if (state.mode==='flags') return hasFlag;
+    if (state.mode==='capitals') return hasCapital;
+    return hasFlag || hasCapital;
+  });
+  // seguridad
+  if (pool.length<4) pool = all;
+
+  state.pool = pool;
+
+  // UI
+  hide($('#panelSetup'));
+  hide($('#panelEnd'));
+  show($('#panelGame'));
+  state.started = true;
+
+  buildRound();
+}
+
+function tryStartIfReady(){
+  if (state.mode && state.theme && state.level){
+    startGame(false);
+  }
+}
+
+// ===== Boot =====
+bindSetup();
+bindGame();
+updateHud();
+
+// Exponer para debugging (opcional)
+// window.__state = state;
